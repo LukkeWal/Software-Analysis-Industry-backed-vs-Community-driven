@@ -187,7 +187,7 @@ def process_pull_request(repo, pr_number, user, created_at, merged_at, closed_at
 def main():
     for repo in repositories:
         print(f"Processing {repo.name}...")
-        data = extract_review_metrics(repo.url, N=5)
+        data = extract_review_metrics(repo.url, N=1000)
         df = pd.DataFrame(data)
         df.to_csv(f"metrics_{repo.url.replace('/', '_')}.csv", index=False)
         time.sleep(API_WAIT_SECONDS)  # Prevent hitting GitHub rate limits

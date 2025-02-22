@@ -7,12 +7,12 @@ from os.path import isfile
 
 from GenerateData import Repository, repositories
 
-DATA_FOLDER = "100PR/"
+DATA_FOLDER = "1000PR/"
 
 def get_generated_repositories():
     result = []
     for repo in repositories:
-        if isfile(f"{DATA_FOLDER}metric_{repo.url.replace("/", "_")}.csv"):
+        if isfile(f"{DATA_FOLDER}metrics_{repo.url.replace("/", "_")}.csv"):
             result.append(repo)
     return result
 
@@ -20,7 +20,7 @@ def load_repository_metrics(repo: Repository) -> pd.DataFrame:
     """
     returns the full dataframe of repository metrics
     """
-    data = pd.read_csv(f"{DATA_FOLDER}metric_{repo.url.replace("/", "_")}.csv")
+    data = pd.read_csv(f"{DATA_FOLDER}metrics_{repo.url.replace("/", "_")}.csv")
     # set the date columns to the relavant format
     data["created_at"] = pd.to_datetime(data["created_at"])
     data["merged_at"] = pd.to_datetime(data["merged_at"])

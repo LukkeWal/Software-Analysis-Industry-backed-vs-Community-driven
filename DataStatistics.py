@@ -28,10 +28,10 @@ def barplot_number_of_reviews_per_reviewer(repo: Repository):
     num_reviews = get_number_of_reviews_per_reviewer(repo)
     # Create bar plot
     plt.figure(figsize=(12, 6))
-    plt.barh(num_reviews.keys(), num_reviews.values(), color='steelblue')
+    plt.barh(list(num_reviews.keys()), list(num_reviews.values()), color='steelblue')
     plt.xlabel("Number of Reviews")
     plt.ylabel("Reviewers")
-    plt.title("Number of Reviews Per Reviewer")
+    plt.title(f"Number of Reviews Per Reviewer: {repo.name}")
     plt.gca().invert_yaxis()  # Invert y-axis for better readability
     plt.grid(axis="x", linestyle="--", alpha=0.7)
     
@@ -73,10 +73,12 @@ def boxplot_spread_number_of_reviews_per_reviewer():
 
 
 def main():
-    boxplot_spread_number_of_reviews_per_reviewer()
     for repo in get_generated_repositories():
         print_date_range(repo)
+        barplot_number_of_reviews_per_reviewer(repo)
+    boxplot_spread_number_of_reviews_per_reviewer()
     return
+
 
 if __name__ == "__main__":
     main()

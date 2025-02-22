@@ -72,3 +72,54 @@ def get_LOC_per_reviewer(repo):
     for reviewer in reviewers:
         result[reviewer] = get_LOC_of_reviewer(repo, reviewer)
     return result
+
+def get_review_time_hours_of_reviewer(repo: Repository, reviewer: str):
+    """
+    get the amount of LOC a reviewer reviewed in a repository.
+    the LOC of any PR this reviewer has reviewed at least once will be summed
+    """
+    metrics = load_repository_metrics(repo)
+    reviewer_metrics = metrics["reviewers"].str.contains(reviewer, na=False)
+    filtered_metrics = metrics[reviewer_metrics]
+    return filtered_metrics["review_time_hours"].dropna().sum()
+
+def get_review_time_hours_per_reviewer(repo):
+    """
+    get the LOC reviewed by all reviewers in a repository. Returns a dict
+    with reviewers names as keys and their summed LOC as values
+    """
+    result = {}
+    reviewers = get_all_reviewers(repo)
+    for reviewer in reviewers:
+        result[reviewer] = get_review_time_hours_of_reviewer(repo, reviewer)
+    return result
+
+def get_average_response_time_hours_of_reviewer(repo: Repository, reviewer: str):
+    """
+    get the amount of LOC a reviewer reviewed in a repository.
+    the LOC of any PR this reviewer has reviewed at least once will be summed
+    """
+    metrics = load_repository_metrics(repo)
+    metrics = metrics.copy()
+    metrics["first_reviewer"] = metrics["reviewers"].apply(
+        lambda x: x.split(",")[0].strip() if pd.notna(x) and x.strip() != "" else None
+    )
+    filtered_metrics = metrics[metrics["first_reviewer"] == reviewer]
+    if len(filtered_metrics) == 0:
+        return None
+    avg_response_time = filtered_metrics["response_time_hours"].dropna().mean()
+    return avg_response_time
+
+def get_average_response_time_hours_per_reviewer(repo):
+    """
+    get the LOC reviewed by all reviewers in a repository. Returns a dict
+    with reviewers names as keys and their summed LOC as values
+    """
+    result = {}
+    reviewers = get_all_reviewers(repo)
+    for reviewer in reviewers:
+        response_time = get_average_response_time_hours_of_reviewer(repo, reviewer)
+        if response_time is None:
+            continue
+        result[reviewer] = get_average_response_time_hours_of_reviewer(repo, reviewer)
+    return result

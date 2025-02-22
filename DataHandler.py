@@ -51,3 +51,24 @@ def get_number_of_reviews_per_reviewer(repo):
     for reviewer in reviewers:
         result[reviewer] = get_number_of_reviews(repo, reviewer)
     return result
+
+def get_LOC_of_reviewer(repo: Repository, reviewer: str):
+    """
+    get the amount of LOC a reviewer reviewed in a repository.
+    the LOC of any PR this reviewer has reviewed at least once will be summed
+    """
+    metrics = load_repository_metrics(repo)
+    reviewer_metrics = metrics["reviewers"].str.contains(reviewer, na=False)
+    filtered_metrics = metrics[reviewer_metrics]
+    return filtered_metrics["lines_of_code"].dropna().sum()
+
+def get_LOC_per_reviewer(repo):
+    """
+    get the LOC reviewed by all reviewers in a repository. Returns a dict
+    with reviewers names as keys and their summed LOC as values
+    """
+    result = {}
+    reviewers = get_all_reviewers(repo)
+    for reviewer in reviewers:
+        result[reviewer] = get_LOC_of_reviewer(repo, reviewer)
+    return result

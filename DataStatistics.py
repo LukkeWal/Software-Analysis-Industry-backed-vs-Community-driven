@@ -5,7 +5,14 @@ Here information about the data is visualized through plots or commandline outpu
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from DataHandler import load_repository_metrics, get_number_of_reviews_per_reviewer, get_generated_repositories, Repository
+from DataHandler import (
+    load_repository_metrics, 
+    get_number_of_reviews_per_reviewer, 
+    get_generated_repositories, 
+    Repository,
+    get_LOC_per_reviewer
+)
+    
 
 SHOW_PLOTS = True
 SAVE_PLOTS = False
@@ -40,7 +47,7 @@ def barplot_number_of_reviews_per_reviewer(repo: Repository):
     if SAVE_PLOTS:
         plt.savefig()
 
-def boxplot_spread_number_of_reviews_per_reviewer():
+def boxplots_spread_number_of_reviews_per_reviewer():
     """
     create boxplots to visualize the spread of the amount of reviews
     per reviewer between all repositories
@@ -71,12 +78,43 @@ def boxplot_spread_number_of_reviews_per_reviewer():
     if SAVE_PLOTS:
         plt.savefig()
 
+def boxplots_spread_number_of_LOC_per_reviewer():
+    """
+    create boxplots to visualize the spread of the amount of reviewed LOC
+    per reviewer between all repositories
+    """
+    repo_data = {}
+    colors = []
+    for repo in get_generated_repositories():
+        repo_data[repo.name] = list(get_LOC_per_reviewer(repo).values())
+        if repo.is_industry_backed:
+            colors.append('lightblue')
+        else:
+            colors.append("#D8BFD8")
+
+    plt.figure(figsize=(12, 6))
+    # Create boxplot
+    box = plt.boxplot(repo_data.values(), labels=repo_data.keys(), patch_artist=True, boxprops=dict(facecolor='lightblue'))
+    for i, patch in enumerate(box['boxes']):
+        patch.set_facecolor(colors[i])
+    # Formatting
+    plt.xlabel("Repositories")
+    plt.ylabel("number of reviewed lines of code per reviewer")
+    plt.xticks(rotation=30, ha="right")  # Rotate x-axis labels for better readability
+    plt.subplots_adjust(bottom=0.2)
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+
+    if SHOW_PLOTS:
+        plt.show()
+    if SAVE_PLOTS:
+        plt.savefig()
 
 def main():
-    for repo in get_generated_repositories():
-        print_date_range(repo)
-        barplot_number_of_reviews_per_reviewer(repo)
-    boxplot_spread_number_of_reviews_per_reviewer()
+    # for repo in get_generated_repositories():
+    #     print_date_range(repo)
+    #     barplot_number_of_reviews_per_reviewer(repo)
+    boxplots_spread_number_of_reviews_per_reviewer()
+    boxplots_spread_number_of_LOC_per_reviewer()
     return
 
 

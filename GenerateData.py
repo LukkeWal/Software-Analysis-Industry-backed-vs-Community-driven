@@ -15,6 +15,7 @@ load_dotenv()  # Load environment variables from .env
 
 # Configurations
 SKIP_NO_REVIEWS = True
+SKIP_BOT_PRS = True
 API_WAIT_SECONDS = 0.72  # Number of seconds to wait after each API call
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
@@ -42,7 +43,13 @@ def get_N_pull_requests(repo, N):
             pr_page = response.json()
             if not pr_page:  # No more PRs available
                 break
-
+            
+            if SKIP_BOT_PRS:
+                pr_page = [
+                    pr 
+                    for pr in pr_page
+                    if pr.get("user", {}).get("type") != "Bot"
+                ]
             pr_list.extend(pr_page[:N - len(pr_list)])  # Add only up to N PRs
             page += 1  # Move to the next page
         else:
@@ -126,47 +133,84 @@ def process_pull_request(repo, pr_number, user, created_at, merged_at, closed_at
     - Fetches reviewers (each review is counted separately)
     - Fetches review details
     - Fetches PR size (lines changed)
+    - Calculates per-reviewer response times (first from PR creation, then from previous review)
     - Skips PRs based on criteria
     """
-    # Fetch reviewers
-    reviewers_list = get_reviewers(repo, pr_number)
-    total_reviews = len(reviewers_list)
-
-    # Skip if no reviewers and configured to skip
-    if SKIP_NO_REVIEWS and not reviewers_list:
-        return None
-
-    # Fetch review details
-    review_url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews"
-    review_response = requests.get(review_url, headers=HEADERS)
+    # Fetch reviews (existing logic)
+    reviews_url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews"
+    review_response = requests.get(reviews_url, headers=HEADERS)
     time.sleep(API_WAIT_SECONDS)  # Wait to avoid hitting rate limits
 
-    if review_response.status_code == 200:
-        reviews = review_response.json()
-        review_times = [review.get('submitted_at') for review in reviews if review.get('submitted_at')]
-        first_review_time = min(review_times) if review_times else None
+    if review_response.status_code != 200:
+        print(f"Failed to fetch reviews for {repo} PR#{pr_number}: {review_response.status_code}")
+        return None
+
+    reviews = review_response.json()
+    # Filter out any reviews without a user or submitted_at (just to be safe)
+    pr_author = user  # The PR creator's login
+    reviews = [
+        rv for rv in reviews
+        if rv.get("user")
+        and rv.get("submitted_at")
+        and rv["user"]["login"] != pr_author
+    ]
+
+    # Sort reviews by the time they were submitted
+    reviews_sorted = sorted(
+        reviews,
+        key=lambda r: pd.to_datetime(r["submitted_at"])
+    )
+
+    # Build parallel lists of reviewers and their response times
+    reviewers_list = []
+    reviewer_response_times_list = []
+
+    # Initialize "last activity" time to PR creation
+    last_activity_time = pd.to_datetime(created_at)
+
+    for rv in reviews_sorted:
+        reviewer_login = rv["user"]["login"]
+        review_submitted_at = pd.to_datetime(rv["submitted_at"])
+
+        # Calculate how long it took THIS reviewer to respond since last activity
+        time_diff_hours = (review_submitted_at - last_activity_time).total_seconds() / 3600.0
+
+        reviewers_list.append(reviewer_login)
+        reviewer_response_times_list.append(time_diff_hours)
+
+        # Update last_activity_time to this review's time
+        last_activity_time = review_submitted_at
+
+    total_reviews = len(reviewers_list)
+
+    # If SKIP_NO_REVIEWS is True and we have no reviews, skip this PR
+    if SKIP_NO_REVIEWS and total_reviews == 0:
+        return None
+
+    # Calculate "time to first review" purely from PR creation to first reviewer
+    if len(reviewer_response_times_list) > 0:
+        response_time = reviewer_response_times_list[0]
     else:
-        first_review_time = None
+        response_time = None
 
-    # Calculate response time
-    response_time = None
-    if first_review_time:
-        response_time = pd.to_datetime(first_review_time) - pd.to_datetime(created_at)
-        response_time = response_time.total_seconds() / 3600  # Convert to hours
-
-    # Calculate review time (PR creation → merge/close)
+    # Calculate "review time" (PR creation → merge or close)
     review_time = None
     if merged_at:
         review_time = pd.to_datetime(merged_at) - pd.to_datetime(created_at)
     elif closed_at:
         review_time = pd.to_datetime(closed_at) - pd.to_datetime(created_at)
+    if review_time is not None:
+        review_time = review_time.total_seconds() / 3600.0  # hours
 
-    review_time = review_time.total_seconds() / 3600 if review_time else None  # Convert to hours
-
-    # Fetch PR details (additions, deletions, changed files)
+    # Fetch PR size (additions, deletions, changed_files) - existing logic
     pr_details = get_pull_request_details(repo, pr_number)
+    loc = None
+    if (pr_details["additions"] is not None) and (pr_details["deletions"] is not None):
+        loc = pr_details["additions"] + pr_details["deletions"]
 
-    loc = None if pr_details["additions"] is None or pr_details["deletions"] is None else pr_details["additions"] + pr_details["deletions"]
+    # Convert lists to comma-separated strings for CSV output 
+    reviewers_str = ", ".join(reviewers_list)
+    reviewer_times_str = ", ".join(f"{t:.2f}" for t in reviewer_response_times_list)
 
     return {
         "repo": repo,
@@ -176,13 +220,15 @@ def process_pull_request(repo, pr_number, user, created_at, merged_at, closed_at
         "merged_at": merged_at,
         "closed_at": closed_at,
         "num_reviews": total_reviews,
-        "reviewers": ", ".join(reviewers_list),
-        "response_time_hours": response_time,
-        "review_time_hours": review_time,
+        "reviewers": reviewers_str,
+        "reviewer_response_times": reviewer_times_str,
+        "response_time_hours": response_time,       # time to first review
+        "review_time_hours": review_time,           # time to merge/close
         "lines_of_code": loc,
         "changed_files": pr_details["changed_files"],
         "url": url
     }
+
 
 def main():
     for repo in repositories:

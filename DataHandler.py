@@ -8,7 +8,7 @@ from os.path import isfile
 
 from GenerateData import Repository, repositories
 
-DATA_FOLDER = "1000PR/"
+DATA_FOLDER = "100PRNew/"
 
 def get_generated_repositories():
     result = []
@@ -103,19 +103,55 @@ def get_review_time_hours_per_reviewer(repo, filter_outliers: bool = False):
 
 def get_average_response_time_hours_of_reviewer(repo: Repository, reviewer: str):
     """
-    get the amount of LOC a reviewer reviewed in a repository.
-    the LOC of any PR this reviewer has reviewed at least once will be summed
+    Given a repository and a reviewer's GitHub username, this function returns
+    the average response time (in hours) across all PRs that the reviewer 
+    participated in, based on the 'reviewers' and 'reviewer_response_times' columns.
+
+    Assumptions:
+      - 'reviewers' is a comma-separated list of reviewer usernames, in chronological order.
+      - 'reviewer_response_times' is a comma-separated list of floats (hours), 
+        aligned with 'reviewers' by index.
+      - Both columns exist in the repository's metrics DataFrame.
+
+    Returns:
+      - A float representing the average response time in hours for the given reviewer.
+      - None if the reviewer has not reviewed any PRs or if data is missing.
     """
-    metrics = load_repository_metrics(repo)
-    metrics = metrics.copy()
-    metrics["first_reviewer"] = metrics["reviewers"].apply(
-        lambda x: x.split(",")[0].strip() if pd.notna(x) and x.strip() != "" else None
-    )
-    filtered_metrics = metrics[metrics["first_reviewer"] == reviewer]
-    if len(filtered_metrics) == 0:
+    # Load and copy the metrics DataFrame for the repository
+    metrics = load_repository_metrics(repo).copy()
+
+    # This list will collect all response times (in hours) for this reviewer
+    all_times_for_reviewer = []
+
+    for _, row in metrics.iterrows():
+        # Skip any rows missing required columns
+        if pd.isnull(row.get("reviewers")) or pd.isnull(row.get("reviewer_response_times")):
+            continue
+
+        # Split both columns into lists
+        reviewers_list = [r.strip() for r in row["reviewers"].split(",") if r.strip()]
+        times_list_str = [t.strip() for t in row["reviewer_response_times"].split(",") if t.strip()]
+
+        # Ensure we have the same count of reviewers and times
+        if len(reviewers_list) != len(times_list_str):
+            continue  # Data mismatch, skip this row
+
+        # For each reviewer in the list, check if it matches our target `reviewer`
+        for i, rv in enumerate(reviewers_list):
+            if rv == reviewer:
+                # Parse the corresponding time from times_list_str
+                try:
+                    time_hours = float(times_list_str[i])
+                    all_times_for_reviewer.append(time_hours)
+                except ValueError:
+                    # If conversion fails, skip
+                    pass
+
+    # Calculate the average if we have any times
+    if not all_times_for_reviewer:
         return None
-    avg_response_time = filtered_metrics["response_time_hours"].dropna().mean()
-    return avg_response_time
+
+    return sum(all_times_for_reviewer) / len(all_times_for_reviewer)
 
 def get_average_response_time_hours_per_reviewer(repo, filter_outliers: bool = False):
     """

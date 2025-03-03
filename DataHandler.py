@@ -3,6 +3,7 @@ all reading of the data is done through this file, it retrieves the data in a nu
 of different formats for varying use cases
 """
 import pandas as pd
+import numpy as np
 from os.path import isfile
 
 from GenerateData import Repository, repositories
@@ -45,11 +46,13 @@ def get_number_of_reviews(repo: Repository, reviewer: str):
     metrics = load_repository_metrics(repo)
     return metrics["reviewers"].str.count(reviewer).sum()
 
-def get_number_of_reviews_per_reviewer(repo):
+def get_number_of_reviews_per_reviewer(repo, filter_outliers: bool = False):
     result = {}
     reviewers = get_all_reviewers(repo)
     for reviewer in reviewers:
         result[reviewer] = get_number_of_reviews(repo, reviewer)
+    if filter_outliers:
+        result = remove_outliers_from_dict(result)
     return result
 
 def get_LOC_of_reviewer(repo: Repository, reviewer: str):
@@ -62,7 +65,7 @@ def get_LOC_of_reviewer(repo: Repository, reviewer: str):
     filtered_metrics = metrics[reviewer_metrics]
     return filtered_metrics["lines_of_code"].dropna().sum()
 
-def get_LOC_per_reviewer(repo):
+def get_LOC_per_reviewer(repo, filter_outliers: bool = False):
     """
     get the LOC reviewed by all reviewers in a repository. Returns a dict
     with reviewers names as keys and their summed LOC as values
@@ -71,6 +74,8 @@ def get_LOC_per_reviewer(repo):
     reviewers = get_all_reviewers(repo)
     for reviewer in reviewers:
         result[reviewer] = get_LOC_of_reviewer(repo, reviewer)
+    if filter_outliers:
+        result = remove_outliers_from_dict(result)
     return result
 
 def get_review_time_hours_of_reviewer(repo: Repository, reviewer: str):
@@ -83,7 +88,7 @@ def get_review_time_hours_of_reviewer(repo: Repository, reviewer: str):
     filtered_metrics = metrics[reviewer_metrics]
     return filtered_metrics["review_time_hours"].dropna().sum()
 
-def get_review_time_hours_per_reviewer(repo):
+def get_review_time_hours_per_reviewer(repo, filter_outliers: bool = False):
     """
     get the LOC reviewed by all reviewers in a repository. Returns a dict
     with reviewers names as keys and their summed LOC as values
@@ -92,6 +97,8 @@ def get_review_time_hours_per_reviewer(repo):
     reviewers = get_all_reviewers(repo)
     for reviewer in reviewers:
         result[reviewer] = get_review_time_hours_of_reviewer(repo, reviewer)
+    if filter_outliers:
+        result = remove_outliers_from_dict(result)
     return result
 
 def get_average_response_time_hours_of_reviewer(repo: Repository, reviewer: str):
@@ -110,7 +117,7 @@ def get_average_response_time_hours_of_reviewer(repo: Repository, reviewer: str)
     avg_response_time = filtered_metrics["response_time_hours"].dropna().mean()
     return avg_response_time
 
-def get_average_response_time_hours_per_reviewer(repo):
+def get_average_response_time_hours_per_reviewer(repo, filter_outliers: bool = False):
     """
     get the LOC reviewed by all reviewers in a repository. Returns a dict
     with reviewers names as keys and their summed LOC as values
@@ -122,4 +129,21 @@ def get_average_response_time_hours_per_reviewer(repo):
         if response_time is None:
             continue
         result[reviewer] = get_average_response_time_hours_of_reviewer(repo, reviewer)
+    if filter_outliers:
+        result = remove_outliers_from_dict(result)
     return result
+
+def remove_outliers_from_dict(data: dict):
+    # Extract the values (results) from the dictionary
+    results = list(data.values())
+    # Compute Q1 (25th percentile) and Q3 (75th percentile)
+    Q1 = np.percentile(results, 25)
+    Q3 = np.percentile(results, 75)
+    # Compute IQR
+    IQR = Q3 - Q1
+    # Define the lower and upper bounds for outliers
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    # Filter out outliers based on the bounds
+    filtered_dict = {key: value for key, value in data.items() if lower_bound <= value <= upper_bound}
+    return filtered_dict

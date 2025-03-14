@@ -8,7 +8,7 @@ from os.path import isfile
 
 from GenerateData import Repository, repositories
 
-DATA_FOLDER = "100PRNew/"
+DATA_FOLDER = "1000PRNew/"
 
 def get_generated_repositories():
     result = []

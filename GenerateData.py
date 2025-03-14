@@ -26,6 +26,54 @@ HEADERS = {
     "Accept": "application/vnd.github.v3+json"
 }
 
+def get_pull_requests_by_date(repo, start_date, end_date):
+    """
+    Fetches all closed pull requests for a repository that were created
+    between start_date (inclusive) and end_date (exclusive).
+    It pages through the results (100 per page) using sorting by created date in ascending order.
+    """
+    pr_list = []
+    page = 1
+    start_dt = pd.to_datetime(start_date).tz_localize('UTC')
+    end_dt = pd.to_datetime(end_date).tz_localize('UTC')
+
+    while True:
+        print(f"Fetching PRs page {page}", end="\r")
+        url = (
+            f"https://api.github.com/repos/{repo}/pulls"
+            f"?state=closed&sort=created&direction=asc&per_page=100&page={page}"
+        )
+        response = requests.get(url, headers=HEADERS)
+        time.sleep(API_WAIT_SECONDS)  # Wait to avoid hitting rate limits
+
+        if response.status_code != 200:
+            print(f"Failed to fetch PRs for {repo}: {response.status_code}")
+            break
+
+        pr_page = response.json()
+        if not pr_page:
+            break
+
+        if SKIP_BOT_PRS:
+            pr_page = [
+                pr for pr in pr_page
+                if pr.get("user", {}).get("type") != "Bot"
+            ]
+
+        for pr in pr_page:
+            pr_created = pd.to_datetime(pr["created_at"])
+            if pr_created < start_dt:
+                # Skip PRs before the start date.
+                continue
+            if pr_created >= end_dt:
+                # Since results are sorted ascending by created date,
+                # once we hit a PR on/after end_date, we can stop.
+                return pr_list
+            pr_list.append(pr)
+        page += 1
+
+    return pr_list
+
 def get_N_pull_requests(repo, N):
     """
     Fetches the last N pull requests from a repository using the /pulls API.
@@ -100,12 +148,12 @@ def get_pull_request_details(repo, pr_number):
         return {"additions": None, "deletions": None, "changed_files": None}
 
 
-def extract_review_metrics(repo, N):
+def extract_review_metrics(repo, start_date, end_date):
     """
     Extracts code review metrics from the last N pull requests.
     Processes them sequentially with API rate limiting.
     """
-    pull_requests = get_N_pull_requests(repo, N)
+    pull_requests = get_pull_requests_by_date(repo, start_date, end_date)
     metrics = []
 
     for i, pr in enumerate(pull_requests, 1):
@@ -231,9 +279,11 @@ def process_pull_request(repo, pr_number, user, created_at, merged_at, closed_at
 
 
 def main():
+    start_date = "2024-01-01"
+    end_date = "2025-01-01"
     for repo in repositories:
         print(f"Processing {repo.name}...")
-        data = extract_review_metrics(repo.url, N=1000)
+        data = extract_review_metrics(repo.url, start_date, end_date)
         df = pd.DataFrame(data)
         df.to_csv(f"metrics_{repo.url.replace('/', '_')}.csv", index=False)
         time.sleep(API_WAIT_SECONDS)  # Prevent hitting GitHub rate limits

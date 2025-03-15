@@ -133,7 +133,7 @@ def plot_boxplot_from_dict(
     plt.figure(figsize=(12, 6))
     box = plt.boxplot(
         data_dict.values(),
-        labels=data_dict.keys(),
+        tick_labels=data_dict.keys(),
         patch_artist=True,   # allows us to set facecolor
         boxprops=dict(facecolor='lightblue')
     )
@@ -529,10 +529,9 @@ def scatterplot_respone_time_vs_loc():
     )
 
 def main():
-    for repo in get_generated_repositories():
-        print_date_range(repo)
+    # for repo in get_generated_repositories():
+    #     print_date_range(repo)
 
-    # Example usage of each boxplot
     # boxplot_num_reviews_per_reviewer_per_repo()
     # boxplot_loc_per_reviewer_per_repo()
     # boxplot_review_time_per_reviewer_per_repo()
@@ -543,25 +542,18 @@ def main():
     # boxplot_review_time_per_reviewer_per_category()
     # boxplot_response_time_per_reviewer_per_category()
 
-    # # Example usage of histograms
-    # # for repo in get_generated_repositories():
-    # #     histogram_num_reviews_per_reviewer(repo)
-    # #     histogram_loc_per_reviewer(repo)
-    # #     histogram_review_time_per_reviewer(repo)
-    # #     histogram_response_time_per_reviewer(repo)
-
     # histogram_num_reviews_per_reviewer_per_category()
     # histogram_number_of_LOC_per_reviewer_per_category()
-    # histogram_review_time_hours_per_reviewer_per_category()
     # histogram_average_response_time_hours_per_reviewer_per_category()
+    # histogram_review_time_hours_per_reviewer_per_category()
 
     # # Example scatterplots
-    # scatterplot_num_reviews_vs_response_time()
+    scatterplot_num_reviews_vs_response_time()
+    scatterplot_num_reviews_vs_loc()
+    scatterplot_respone_time_vs_loc()
     # scatterplot_num_reviews_vs_review_time()
-    # scatterplot_num_reviews_vs_loc()
     # scatterplot_review_time_vs_loc()
     # scatterplot_review_time_vs_response_time()
-    # scatterplot_respone_time_vs_loc()
 
 if __name__ == "__main__":
     main()

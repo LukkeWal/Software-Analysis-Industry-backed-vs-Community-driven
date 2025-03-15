@@ -16,7 +16,7 @@ load_dotenv()  # Load environment variables from .env
 # Configurations
 SKIP_NO_REVIEWS = True
 SKIP_BOT_PRS = True
-API_WAIT_SECONDS = 0.72  # Number of seconds to wait after each API call
+API_WAIT_SECONDS = 0.75  # Number of seconds to wait after each API call
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
@@ -38,7 +38,7 @@ def get_pull_requests_by_date(repo, start_date, end_date):
     end_dt = pd.to_datetime(end_date).tz_localize('UTC')
 
     while True:
-        print(f"Fetching PRs page {page}", end="\r")
+        print(f"Fetching PRs page {page} total PRs: {len(pr_list)}", end="\r")
         url = (
             f"https://api.github.com/repos/{repo}/pulls"
             f"?state=closed&sort=created&direction=asc&per_page=100&page={page}"
@@ -47,7 +47,7 @@ def get_pull_requests_by_date(repo, start_date, end_date):
         time.sleep(API_WAIT_SECONDS)  # Wait to avoid hitting rate limits
 
         if response.status_code != 200:
-            print(f"Failed to fetch PRs for {repo}: {response.status_code}")
+            print(f"Failed to fetch PRs for {repo}: {response.status_code}\n{response}")
             break
 
         pr_page = response.json()

@@ -23,6 +23,8 @@ FILTER_OUTLIERS = False
 SHOW_PLOTS = False
 SAVE_PLOTS = True
 LOG_TRANSFORM = True
+REMOVE_IF_LESS_NUM_REVIEWS = 0
+DRAW_VERTICAL_LINES_FOR_NUM_REVIEWS = True
 
 def print_date_range(repo: Repository):
     """
@@ -61,20 +63,38 @@ def maybe_log_transform(values: list[float]) -> list[float]:
         return values
 
 def aggregator_num_reviews(repo: Repository, filter_outliers: bool) -> dict:
-    """Returns { reviewer_name: num_reviews } for a given repo."""
-    return get_number_of_reviews_per_reviewer(repo, filter_outliers)
+    """Returns { reviewer_name: num_reviews } for a given repo,
+       filtering out reviewers with less than REMOVE_IF_LESS_NUM_REVIEWS reviews.
+    """
+    data = get_number_of_reviews_per_reviewer(repo, filter_outliers)
+    return { reviewer: count for reviewer, count in data.items() if count >= REMOVE_IF_LESS_NUM_REVIEWS }
 
 def aggregator_loc(repo: Repository, filter_outliers: bool) -> dict:
-    """Returns { reviewer_name: total_LOC_reviewed } for a given repo."""
-    return get_LOC_per_reviewer(repo, filter_outliers)
+    """Returns { reviewer_name: total_LOC_reviewed } for a given repo,
+       filtering out reviewers with less than REMOVE_IF_LESS_NUM_REVIEWS reviews.
+    """
+    loc_data = get_LOC_per_reviewer(repo, filter_outliers)
+    reviews_data = get_number_of_reviews_per_reviewer(repo, filter_outliers)
+    return { reviewer: loc for reviewer, loc in loc_data.items() 
+             if reviews_data.get(reviewer, 0) >= REMOVE_IF_LESS_NUM_REVIEWS }
 
 def aggregator_review_time(repo: Repository, filter_outliers: bool) -> dict:
-    """Returns { reviewer_name: total_review_time_hours } for a given repo."""
-    return get_review_time_hours_per_reviewer(repo, filter_outliers)
+    """Returns { reviewer_name: total_review_time_hours } for a given repo,
+       filtering out reviewers with less than REMOVE_IF_LESS_NUM_REVIEWS reviews.
+    """
+    review_time_data = get_review_time_hours_per_reviewer(repo, filter_outliers)
+    reviews_data = get_number_of_reviews_per_reviewer(repo, filter_outliers)
+    return { reviewer: time_val for reviewer, time_val in review_time_data.items() 
+             if reviews_data.get(reviewer, 0) >= REMOVE_IF_LESS_NUM_REVIEWS }
 
 def aggregator_response_time(repo: Repository, filter_outliers: bool) -> dict:
-    """Returns { reviewer_name: average_response_time_hours } for a given repo."""
-    return get_average_response_time_hours_per_reviewer(repo, filter_outliers)
+    """Returns { reviewer_name: average_response_time_hours } for a given repo,
+       filtering out reviewers with less than REMOVE_IF_LESS_NUM_REVIEWS reviews.
+    """
+    response_time_data = get_average_response_time_hours_per_reviewer(repo, filter_outliers)
+    reviews_data = get_number_of_reviews_per_reviewer(repo, filter_outliers)
+    return { reviewer: resp for reviewer, resp in response_time_data.items() 
+             if reviews_data.get(reviewer, 0) >= REMOVE_IF_LESS_NUM_REVIEWS }
 
 def gather_repo_data_for_boxplot(aggregator_func, filter_outliers: bool):
     """
@@ -205,7 +225,7 @@ def plot_boxplot_for_categories(data_dict: dict[str, list], colors: list[str], y
     plt.figure(figsize=(12, 6))
     box = plt.boxplot(
         data_dict.values(),
-        labels=data_dict.keys(),
+        tick_labels=data_dict.keys(),
         patch_artist=True,
         boxprops=dict(facecolor='lightblue')
     )
@@ -261,9 +281,9 @@ def boxplot_response_time_per_reviewer_per_category():
         plot_filename="boxplot_response_time_per_reviewer_per_category.png"
     )
 
-def plot_histogram(values: list[float], label: str, color="blue", plot_filename=None):
+def plot_density(values: list[float], label: str, color="blue", plot_filename=None):
     """
-    Plots a histogram of one distribution (optionally log-transformed already).
+    Plots a density of one distribution (optionally log-transformed already).
     """
     plt.figure(figsize=(12, 6))
     plt.hist(values, bins=40, alpha=0.7, color=color, edgecolor='black')
@@ -277,55 +297,55 @@ def plot_histogram(values: list[float], label: str, color="blue", plot_filename=
     if SAVE_PLOTS and plot_filename:
         _save_plot(plot_filename)
 
-def histogram_num_reviews_per_reviewer(repo: Repository):
+def density_num_reviews_per_reviewer(repo: Repository):
     dist = aggregator_num_reviews(repo, FILTER_OUTLIERS).values()
     dist = maybe_log_transform(list(dist))
     color = "lightblue" if repo.is_industry_backed else "#D8BFD8"
-    filename = f"histogram_num_reviews_per_reviewer_{repo.name}.png"
-    plot_histogram(
+    filename = f"density_num_reviews_per_reviewer_{repo.name}.png"
+    plot_density(
         dist, 
         f"Number of Reviews per Reviewer in {repo.name}" + (" (log)" if LOG_TRANSFORM else ""), 
         color=color, 
         plot_filename=filename
     )
 
-def histogram_loc_per_reviewer(repo: Repository):
+def density_loc_per_reviewer(repo: Repository):
     dist = aggregator_loc(repo, FILTER_OUTLIERS).values()
     dist = maybe_log_transform(list(dist))
     color = "lightblue" if repo.is_industry_backed else "#D8BFD8"
-    filename = f"histogram_loc_per_reviewer_{repo.name}.png"
-    plot_histogram(
+    filename = f"density_loc_per_reviewer_{repo.name}.png"
+    plot_density(
         dist, 
         f"Number of Lines of Code per Reviewer in {repo.name}" + (" (log)" if LOG_TRANSFORM else ""), 
         color=color, 
         plot_filename=filename
     )
 
-def histogram_review_time_per_reviewer(repo: Repository):
+def density_review_time_per_reviewer(repo: Repository):
     dist = aggregator_review_time(repo, FILTER_OUTLIERS).values()
     dist = maybe_log_transform(list(dist))
     color = "lightblue" if repo.is_industry_backed else "#D8BFD8"
-    filename = f"histogram_review_time_per_reviewer_{repo.name}.png"
-    plot_histogram(
+    filename = f"density_review_time_per_reviewer_{repo.name}.png"
+    plot_density(
         dist, 
         f"Total Review Time per Reviewer in {repo.name}" + (" (log)" if LOG_TRANSFORM else ""), 
         color=color, 
         plot_filename=filename
     )
 
-def histogram_response_time_per_reviewer(repo: Repository):
+def density_response_time_per_reviewer(repo: Repository):
     dist = aggregator_response_time(repo, FILTER_OUTLIERS).values()
     dist = maybe_log_transform(list(dist))
     color = "lightblue" if repo.is_industry_backed else "#D8BFD8"
-    filename = f"histogram_response_time_per_reviewer_{repo.name}.png"
-    plot_histogram(
+    filename = f"density_response_time_per_reviewer_{repo.name}.png"
+    plot_density(
         dist, 
         f"Average Response Time per Reviewer in {repo.name}" + (" (log)" if LOG_TRANSFORM else ""), 
         color=color, 
         plot_filename=filename
     )
 
-def plot_two_histograms_or_kde(
+def plot_two_densitys_or_kde(
     dist_a: list[float], 
     dist_b: list[float], 
     xlabel: str, 
@@ -353,48 +373,48 @@ def plot_two_histograms_or_kde(
     if SAVE_PLOTS and plot_filename:
         _save_plot(plot_filename)
 
-def histogram_num_reviews_per_reviewer_per_category():
+def density_num_reviews_per_reviewer_per_category():
     cat_data, _ = gather_category_data_for_boxplot(aggregator_num_reviews, FILTER_OUTLIERS)
     dist_ind = cat_data["Industry-Backed"]
     dist_com = cat_data["Community-Driven"]
-    plot_two_histograms_or_kde(
+    plot_two_densitys_or_kde(
         dist_ind, 
         dist_com, 
         xlabel="Number of Reviews per Reviewer",
-        plot_filename="histogram_num_reviews_per_reviewer_per_category.png"
+        plot_filename="density_num_reviews_per_reviewer_per_category.png"
     )
 
-def histogram_number_of_LOC_per_reviewer_per_category():
+def density_number_of_LOC_per_reviewer_per_category():
     cat_data, _ = gather_category_data_for_boxplot(aggregator_loc, FILTER_OUTLIERS)
     dist_ind = cat_data["Industry-Backed"]
     dist_com = cat_data["Community-Driven"]
-    plot_two_histograms_or_kde(
+    plot_two_densitys_or_kde(
         dist_ind, 
         dist_com, 
         xlabel="Number of Lines of Code per Reviewer",
-        plot_filename="histogram_loc_per_reviewer_per_category.png"
+        plot_filename="density_loc_per_reviewer_per_category.png"
     )
 
-def histogram_review_time_hours_per_reviewer_per_category():
+def density_review_time_hours_per_reviewer_per_category():
     cat_data, _ = gather_category_data_for_boxplot(aggregator_review_time, FILTER_OUTLIERS)
     dist_ind = cat_data["Industry-Backed"]
     dist_com = cat_data["Community-Driven"]
-    plot_two_histograms_or_kde(
+    plot_two_densitys_or_kde(
         dist_ind, 
         dist_com, 
         xlabel="Total Review Time per Reviewer",
-        plot_filename="histogram_review_time_per_reviewer_per_category.png"
+        plot_filename="density_review_time_per_reviewer_per_category.png"
     )
 
-def histogram_average_response_time_hours_per_reviewer_per_category():
+def density_average_response_time_hours_per_reviewer_per_category():
     cat_data, _ = gather_category_data_for_boxplot(aggregator_response_time, FILTER_OUTLIERS)
     dist_ind = cat_data["Industry-Backed"]
     dist_com = cat_data["Community-Driven"]
-    plot_two_histograms_or_kde(
+    plot_two_densitys_or_kde(
         dist_ind, 
         dist_com, 
         xlabel="Average Response Time per Reviewer",
-        plot_filename="histogram_response_time_per_reviewer_per_category.png"
+        plot_filename="density_response_time_per_reviewer_per_category.png"
     )
 
 def plot_scatter_with_fit(
@@ -483,15 +503,6 @@ def scatterplot_num_reviews_vs_response_time():
         plot_filename="scatter_num_reviews_vs_response_time.png"
     )
 
-def scatterplot_num_reviews_vs_review_time():
-    scatterplot_metric_vs_metric(
-        aggregator_num_reviews,
-        aggregator_review_time,
-        x_label="Number of Reviews",
-        y_label="Total Review Time (hours)",
-        plot_filename="scatter_num_reviews_vs_review_time.png"
-    )
-
 def scatterplot_num_reviews_vs_loc():
     scatterplot_metric_vs_metric(
         aggregator_num_reviews,
@@ -499,24 +510,6 @@ def scatterplot_num_reviews_vs_loc():
         x_label="Number of Reviews",
         y_label="Number of Lines of Code",
         plot_filename="scatter_num_reviews_vs_loc.png"
-    )
-
-def scatterplot_review_time_vs_loc():
-    scatterplot_metric_vs_metric(
-        aggregator_review_time,
-        aggregator_loc,
-        x_label="Total Review Time (hours)",
-        y_label="Number of Lines of Code",
-        plot_filename="scatter_review_time_vs_loc.png"
-    )
-
-def scatterplot_review_time_vs_response_time():
-    scatterplot_metric_vs_metric(
-        aggregator_review_time,
-        aggregator_response_time,
-        x_label="Total Review Time (hours)",
-        y_label="Average Response Time (hours)",
-        plot_filename="scatter_review_time_vs_response_time.png"
     )
 
 def scatterplot_respone_time_vs_loc():
@@ -528,32 +521,107 @@ def scatterplot_respone_time_vs_loc():
         plot_filename="scatter_response_time_vs_loc.png"
     )
 
+def plot_histogram(values: list[float], xlabel: str, category_label: str, color: str, plot_filename=None, draw_vertical_lines: bool = False):
+    """
+    Plots a histogram for a single distribution.
+    """
+    plt.figure(figsize=(12, 6))
+    plt.hist(values, bins=40, alpha=0.7, color=color, edgecolor='black')
+    plt.xlabel(xlabel + (" (log)" if LOG_TRANSFORM else ""))
+    plt.ylabel('Frequency')
+    plt.title(f"{xlabel} for {category_label}")
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    
+    # If enabled, compute quantile boundaries and draw vertical lines.
+    if draw_vertical_lines and values:
+        # Compute 33.33rd and 66.66th percentiles
+        q1, q2 = np.percentile(values, [33.33, 66.66])
+        plt.axvline(q1, color='black', linestyle='--', linewidth=1)
+        plt.axvline(q2, color='black', linestyle='--', linewidth=1)
+        
+        # Add text labels: compute midpoints for each category
+        ax = plt.gca()
+        y_max = ax.get_ylim()[1]
+        min_val = min(values)
+        max_val = max(values)
+        low_mid = (min_val + q1) / 2
+        med_mid = (q1 + q2) / 2
+        high_mid = (q2 + max_val) / 2
+        plt.text(low_mid, y_max * 0.95, "Low", horizontalalignment='center')
+        plt.text(med_mid, y_max * 0.95, "Medium", horizontalalignment='center')
+        plt.text(high_mid, y_max * 0.95, "High", horizontalalignment='center')
+    
+    if SHOW_PLOTS:
+        plt.show()
+
+    if SAVE_PLOTS and plot_filename:
+        _save_plot(plot_filename)
+
+def generate_histograms_per_category(aggregator_func, xlabel: str, metric_name: str):
+    category_data, _ = gather_category_data_for_boxplot(aggregator_func, FILTER_OUTLIERS)
+
+    for category, values in category_data.items():
+        color = 'lightblue' if category == "Industry-Backed" else '#D8BFD8'
+        safe_category = category.lower().replace("-", "_").replace(" ", "_")
+        # Enable vertical lines only for the num_reviews metric if the global flag is on.
+        draw_vlines = DRAW_VERTICAL_LINES_FOR_NUM_REVIEWS if metric_name == "num_reviews" else False
+        plot_histogram(
+            values,
+            xlabel=xlabel,
+            category_label=category,
+            color=color,
+            plot_filename=f"histogram_{metric_name}_{safe_category}.png",
+            draw_vertical_lines=draw_vlines
+        )
+
+def histogram_num_reviews_per_category():
+    generate_histograms_per_category(
+        aggregator_num_reviews,
+        xlabel="Number of Reviews per Reviewer",
+        metric_name="num_reviews"
+    )
+
+def histogram_loc_per_category():
+    generate_histograms_per_category(
+        aggregator_loc,
+        xlabel="Number of Lines of Code per Reviewer",
+        metric_name="loc"
+    )
+
+
+def histogram_response_time_per_category():
+    generate_histograms_per_category(
+        aggregator_response_time,
+        xlabel="Average Response Time (hours) per Reviewer",
+        metric_name="response_time"
+    )
+
 def main():
-    # for repo in get_generated_repositories():
-    #     print_date_range(repo)
+    for repo in get_generated_repositories():
+        print_date_range(repo)
 
     # boxplot_num_reviews_per_reviewer_per_repo()
     # boxplot_loc_per_reviewer_per_repo()
-    # boxplot_review_time_per_reviewer_per_repo()
     # boxplot_response_time_per_reviewer_per_repo()
 
     # boxplot_num_reviews_per_reviewer_per_category()
     # boxplot_loc_per_reviewer_per_category()
-    # boxplot_review_time_per_reviewer_per_category()
     # boxplot_response_time_per_reviewer_per_category()
 
-    # histogram_num_reviews_per_reviewer_per_category()
-    # histogram_number_of_LOC_per_reviewer_per_category()
-    # histogram_average_response_time_hours_per_reviewer_per_category()
-    # histogram_review_time_hours_per_reviewer_per_category()
+    # density_num_reviews_per_reviewer_per_category()
+    # density_number_of_LOC_per_reviewer_per_category()
+    # density_average_response_time_hours_per_reviewer_per_category()
 
-    # # Example scatterplots
-    scatterplot_num_reviews_vs_response_time()
-    scatterplot_num_reviews_vs_loc()
-    scatterplot_respone_time_vs_loc()
-    # scatterplot_num_reviews_vs_review_time()
-    # scatterplot_review_time_vs_loc()
-    # scatterplot_review_time_vs_response_time()
+    # # scatterplots
+    # scatterplot_num_reviews_vs_response_time()
+    # scatterplot_num_reviews_vs_loc()
+    # scatterplot_respone_time_vs_loc()
+
+    #  histograms
+    histogram_num_reviews_per_category()
+    # histogram_loc_per_category()
+    # histogram_response_time_per_category()
+
 
 if __name__ == "__main__":
     main()

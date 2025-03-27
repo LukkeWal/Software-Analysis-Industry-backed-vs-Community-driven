@@ -8,7 +8,7 @@ from os.path import isfile
 
 from GenerateData import Repository, repositories
 
-DATA_FOLDER = "1000PRNew/"
+DATA_FOLDER = "1Year/"
 
 def get_generated_repositories():
     result = []
@@ -183,3 +183,24 @@ def remove_outliers_from_dict(data: dict):
     # Filter out outliers based on the bounds
     filtered_dict = {key: value for key, value in data.items() if lower_bound <= value <= upper_bound}
     return filtered_dict
+
+def get_reviewer_categories_by_num_reviews(repo: Repository):
+    reviews_dict = get_number_of_reviews_per_reviewer(repo)
+    reviewer_names = list(reviews_dict.keys())
+    review_counts = [reviews_dict[rev] for rev in reviewer_names]
+
+    log_transformed = [np.log10(v + 1) for v in review_counts]
+
+    low_threshold = np.percentile(log_transformed, 33.3)
+    high_threshold = np.percentile(log_transformed, 66.6)
+
+    low, medium, high = [], [], []
+    for reviewer, value in zip(reviewer_names, log_transformed):
+        if value <= low_threshold:
+            low.append(reviewer)
+        elif value <= high_threshold:
+            medium.append(reviewer)
+        else:
+            high.append(reviewer)
+
+    return low, medium, high

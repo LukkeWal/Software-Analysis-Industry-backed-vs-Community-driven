@@ -144,56 +144,72 @@ def cliffs_delta_response_time():
     run_cliffs_delta("response time", 
                      lambda repo: get_average_response_time_hours_per_reviewer(repo, FILTER_OUTLIERS))
 
-def run_spearman_corr(metric1_name, metric1_func, metric2_name, metric2_func, group=None):
+def run_spearman_corr(metric1_name, metric1_func, metric2_name, metric2_func):
     """
-    Calculates Spearman's rank correlation coefficient between two metrics.
+    Calculates Spearman's rank correlation coefficient between two metrics,
+    separately for industry-backed and community-driven projects.
     
     The metric functions should return dictionaries (e.g., mapping reviewer to value).
-    Only the common keys between the two metrics are considered.
-    
-    If group is specified ('industry' or 'community'), only repositories from that group are used.
+    Only common reviewers (intersection) between the two metrics are considered.
     """
-    data1 = {}
-    data2 = {}
+    industry_data1, industry_data2 = {}, {}
+    community_data1, community_data2 = {}, {}
+
     for repo in repositories:
-        if group == 'industry' and not repo.is_industry_backed:
-            continue
-        if group == 'community' and repo.is_industry_backed:
-            continue
-        
-        d1 = metric1_func(repo)
-        d2 = metric2_func(repo)
-        data1.update(d1)
-        data2.update(d2)
-    
-    common_keys = set(data1.keys()) & set(data2.keys())
-    if not common_keys:
-        print("No common data points found for correlation.")
-        return
-    
-    values1 = np.array([data1[k] for k in common_keys])
-    values2 = np.array([data2[k] for k in common_keys])
-    
-    corr, p_value = spearmanr(values1, values2)
-    print(f"Spearman's rank correlation between {metric1_name} and {metric2_name}:")
-    print(f"  Correlation coefficient: {corr}, P-value: {p_value}\n")
+        data1 = metric1_func(repo)
+        data2 = metric2_func(repo)
+
+        if repo.is_industry_backed:
+            industry_data1.update(data1)
+            industry_data2.update(data2)
+        else:
+            community_data1.update(data1)
+            community_data2.update(data2)
+
+    # Industry-backed correlation
+    common_industry_reviewers = set(industry_data1.keys()) & set(industry_data2.keys())
+    if common_industry_reviewers:
+        values1_ind = [industry_data1[k] for k in common_industry_reviewers]
+        values2_ind = [industry_data2[k] for k in common_industry_reviewers]
+        corr_ind, p_value_ind = spearmanr(values1_ind, values2_ind)
+        print(f"Industry-backed Spearman correlation ({metric1_name} vs {metric2_name}):")
+        print(f"  Correlation coefficient: {corr_ind:.4f}, P-value: {p_value_ind:.4f}")
+    else:
+        print("No common reviewers found in industry-backed data.")
+
+    # Community-driven correlation
+    common_community_reviewers = set(community_data1.keys()) & set(community_data2.keys())
+    if common_community_reviewers:
+        values1_com = [community_data1[k] for k in common_community_reviewers]
+        values2_com = [community_data2[k] for k in common_community_reviewers]
+        corr_com, p_value_com = spearmanr(values1_com, values2_com)
+        print(f"\nCommunity-driven Spearman correlation ({metric1_name} vs {metric2_name}):")
+        print(f"  Correlation coefficient: {corr_com:.4f}, P-value: {p_value_com:.4f}\n")
+    else:
+        print("No common reviewers found in community-driven data.")
 
 def spearman_corr_num_reviews_vs_loc():
     run_spearman_corr(
-        "num reviews", lambda repo: get_number_of_reviews_per_reviewer(repo, FILTER_OUTLIERS),
-        "loc", get_LOC_per_reviewer
+        "num reviews",
+        lambda repo: get_number_of_reviews_per_reviewer(repo, FILTER_OUTLIERS),
+        "lines of code",
+        get_LOC_per_reviewer
     )
 
 def spearman_corr_num_reviews_vs_response_time():
     run_spearman_corr(
-        "num reviews", lambda repo: get_number_of_reviews_per_reviewer(repo, FILTER_OUTLIERS),
-        "response time", lambda repo: get_average_response_time_hours_per_reviewer(repo, FILTER_OUTLIERS)
+        "num reviews",
+        lambda repo: get_number_of_reviews_per_reviewer(repo, FILTER_OUTLIERS),
+        "response time",
+        lambda repo: get_average_response_time_hours_per_reviewer(repo, FILTER_OUTLIERS)
     )
 
 def spearman_corr_loc_vs_response_time():
     run_spearman_corr(
-        "loc", get_LOC_per_reviewer,
-        "response time", lambda repo: get_average_response_time_hours_per_reviewer(repo, FILTER_OUTLIERS)
+        "lines of code",
+        get_LOC_per_reviewer,
+        "response time",
+        lambda repo: get_average_response_time_hours_per_reviewer(repo, FILTER_OUTLIERS)
     )
 
 def highest_number_reviews(N):
@@ -337,13 +353,13 @@ if __name__ == "__main__":
     # cliffs_delta_loc()
     # cliffs_delta_response_time()
     
-    # # Spearman's rank correlation calculations
-    #spearman_corr_num_reviews_vs_loc()
-    # spearman_corr_num_reviews_vs_response_time()
-    #spearman_corr_loc_vs_response_time()
+    # Spearman's rank correlation calculations
+    spearman_corr_num_reviews_vs_loc()
+    spearman_corr_num_reviews_vs_response_time()
+    spearman_corr_loc_vs_response_time()
 
-    test_shapiro_num_reviews_categories()
-    test_mannwhitney_num_reviews_categories()
-    test_cliffs_delta_num_reviews_categories()
+    # test_shapiro_num_reviews_categories()
+    # test_mannwhitney_num_reviews_categories()
+    # test_cliffs_delta_num_reviews_categories()
 
     # highest_number_reviews(100)
